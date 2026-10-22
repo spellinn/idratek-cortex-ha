@@ -1,0 +1,91 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Idratek Cortex",
+        "description": "Enter the address and Web API credentials of your Cortex Web Server object.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the Cortex Web Server, for example 192.168.50.61.",
+          "port": "TCP port of the Cortex Web Server. The default is 80.",
+          "username": "A Cortex user authorised for the Web API.",
+          "password": "The password for that Cortex user."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Cortex",
+        "description": "Cortex rejected the stored credentials. Enter the current Web API username and password.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "username": "A Cortex user authorised for the Web API.",
+          "password": "The password for that Cortex user."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Idratek Cortex",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the Cortex Web Server.",
+          "port": "TCP port of the Cortex Web Server.",
+          "username": "A Cortex user authorised for the Web API.",
+          "password": "The password for that Cortex user."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "Re-configuration was successful",
+      "unique_id_mismatch": "The credentials belong to a different Cortex installation."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Idratek Cortex options",
+        "description": "For instant updates, add a Cortex Web API Client entry that POSTs to {webhook_path} on your Home Assistant URL whenever an object changes.",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        },
+        "data_description": {
+          "scan_interval": "How often Home Assistant polls Cortex. Webhook pushes trigger an immediate refresh in addition."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "cannot_connect": {
+      "message": "Cannot reach the Cortex controller."
+    },
+    "invalid_auth": {
+      "message": "Cortex rejected the stored credentials."
+    },
+    "update_failed": {
+      "message": "Cortex returned an unexpected response: {error}"
+    },
+    "command_failed": {
+      "message": "Cortex did not accept the command for {name}: {error}"
+    },
+    "unsupported_mode": {
+      "message": "This thermostat does not support the mode {mode}."
+    }
+  }
+}

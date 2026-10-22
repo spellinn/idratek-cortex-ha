@@ -1,0 +1,58 @@
+# https://contributors.home-assistant.io/core/quality-scale/rules/
+rules:
+  # Bronze
+  action-setup: {status: exempt, comment: No custom service actions.}
+  appropriate-polling: done
+  brands: done
+  common-modules: done
+  config-flow-test-coverage: done
+  config-flow: done
+  dependency-transparency: {status: exempt, comment: No third-party requirements.}
+  docs-actions: {status: exempt, comment: No custom service actions.}
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  entity-event-setup: {status: exempt, comment: Entities subscribe through the coordinator only.}
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry: done
+  # Silver
+  action-exceptions: done
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable: done
+  integration-owner: done
+  log-when-unavailable: done
+  parallel-updates: done
+  reauthentication-flow: done
+  test-coverage: {status: todo, comment: Extend beyond config flow and light/climate smoke tests.}
+  # Gold
+  devices: done
+  diagnostics: done
+  discovery-update-info: {status: exempt, comment: Cortex has no network discovery.}
+  discovery: {status: exempt, comment: Cortex has no network discovery.}
+  docs-data-update: done
+  docs-examples: todo
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: todo
+  dynamic-devices: {status: todo, comment: Objects are read once at setup; reload to pick up new ones.}
+  entity-category: todo
+  entity-device-class: done
+  entity-disabled-by-default: todo
+  entity-translations: done
+  exception-translations: done
+  icon-translations: {status: exempt, comment: Default icons are used.}
+  reconfiguration-flow: done
+  repair-issues: todo
+  stale-devices: done
+  # Platinum
+  async-dependency: done
+  inject-websession: done
+  strict-typing: todo
