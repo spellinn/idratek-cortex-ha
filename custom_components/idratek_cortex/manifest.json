@@ -1,11 +1,6 @@
 {
   "domain": "idratek_cortex",
   "name": "Idratek Cortex",
-  "categories": [
-    "climate.thermostats_heating",
-    "hubs_protocols.building_automation",
-    "lighting.lighting_systems"
-  ],
   "codeowners": [
     "@spellinn"
   ],
@@ -18,5 +13,5 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/spellinn/idratek-cortex-ha/issues",
   "requirements": [],
-  "version": "2.0.1"
+  "version": "2.0.2"
 }
