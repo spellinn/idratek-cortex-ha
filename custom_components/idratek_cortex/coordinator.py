@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
@@ -19,7 +19,15 @@ from .api import (
     CortexObject,
     PortReading,
 )
-from .const import DOMAIN, HVAC_MODE_PROPERTY, LOGGER, READ_PORTS, SUPPORTED_TYPES, TYPE_HVAC
+from .const import (
+    CONFIRM_DELAY,
+    DOMAIN,
+    HVAC_MODE_PROPERTY,
+    LOGGER,
+    READ_PORTS,
+    SUPPORTED_TYPES,
+    TYPE_HVAC,
+)
 
 type CortexConfigEntry = ConfigEntry[CortexCoordinator]
 
@@ -65,6 +73,7 @@ class CortexCoordinator(DataUpdateCoordinator[dict[str, CortexObjectState]]):
         )
         self.client = client
         self.objects: dict[str, CortexObject] = {}
+        self._confirm_tasks: dict[str, asyncio.Task[None]] = {}
 
     async def _async_setup(self) -> None:
         """Load the object list once; runs before the first refresh."""
@@ -141,3 +150,55 @@ class CortexCoordinator(DataUpdateCoordinator[dict[str, CortexObjectState]]):
             return
         self.async_set_updated_data({**(self.data or {}), object_id: fresh})
 
+
+    async def async_apply_push(self, object_id: str, port: int, raw_value: str) -> bool:
+        """Apply a value carried by a Cortex callback, then confirm with one read.
+
+        Returns False when the push cannot be applied (unknown object or port, or
+        an unparseable value); the caller should fall back to a refresh.
+        """
+        obj = self.objects.get(object_id)
+        if obj is None or not self.data or object_id not in self.data:
+            return False
+        if port not in READ_PORTS[obj.type]:
+            return False
+        value = parse_cortex_number(raw_value)
+        if value is None:
+            return False
+        current = self.data[object_id]
+        previous = current.ports.get(port)
+        # Binary ports report 0 or 100 (Cortex help); a port with a State is binary.
+        state = value > 0 if previous is not None and previous.state is not None else None
+        updated = replace(
+            current, ports={**current.ports, port: PortReading(value, state)}
+        )
+        self.async_set_updated_data({**self.data, object_id: updated})
+        self._schedule_confirm(object_id)
+        return True
+
+    def _schedule_confirm(self, object_id: str) -> None:
+        if (pending := self._confirm_tasks.pop(object_id, None)) is not None:
+            pending.cancel()
+        self._confirm_tasks[object_id] = self.config_entry.async_create_background_task(
+            self.hass,
+            self._confirm(object_id),
+            f"{DOMAIN}_confirm_{object_id}",
+        )
+
+    async def _confirm(self, object_id: str) -> None:
+        await asyncio.sleep(CONFIRM_DELAY)
+        await self.async_refresh_object(object_id)
+
+
+def parse_cortex_number(raw: str) -> float | None:
+    """Parse text substituted by a Cortex tag, for example "0.00", "100" or "1,5"."""
+    text = str(raw).strip().replace(",", ".")
+    lowered = text.lower()
+    if lowered in ("true", "on"):
+        return 100.0
+    if lowered in ("false", "off"):
+        return 0.0
+    try:
+        return float(text)
+    except ValueError:
+        return None

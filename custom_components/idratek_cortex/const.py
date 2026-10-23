@@ -22,6 +22,9 @@ MAX_CONCURRENT_REQUESTS = 4
 # Cortex convention: -1000 means "not configured / disabled".
 DISABLED_SENTINEL = -1000.0
 
+# After a value-carrying push is applied, re-read the object once to confirm.
+CONFIRM_DELAY = 2.0  # seconds
+
 DEFAULT_UPDATE_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL)
 
 # Object types
@@ -33,6 +36,8 @@ TYPE_HVAC = "HVAC"
 TYPE_HEATZONE = "HeatZone"
 TYPE_HOUSE = "House"
 TYPE_ROOM = "Room"
+TYPE_MOTION = "Motion"
+TYPE_DOOR = "Door"
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +102,21 @@ READ_PORTS: dict[str, tuple[int, ...]] = {
     TYPE_HOMEEASY_LIGHT: (15,),
     TYPE_ONOFFLOAD: (16,),
     TYPE_HVAC: (0, 17, 18, 46, 47),
+    TYPE_ROOM: (2, 8),  # 2 occupied (raw), 8 delayed occupied
+    TYPE_MOTION: (0,),  # 0 motion output
+    TYPE_DOOR: (2,),  # 2 door output, true = open
+}
+
+# Ports worth pushing from a Cortex Web API Client, with their Cortex descriptions.
+# HVAC is intentionally absent: several of its values change together, so use id only.
+PUSH_PORTS: dict[str, tuple[tuple[int, str], ...]] = {
+    TYPE_ROOM: ((2, "Occupied state output"), (8, "Delayed occupied state output")),
+    TYPE_MOTION: ((0, "Output"),),
+    TYPE_DOOR: ((2, "Door output state"),),
+    TYPE_LIGHT: ((15, "Set On (Output)"),),
+    TYPE_HOMEEASY_LIGHT: ((15, "Set On (Output)"),),
+    TYPE_ONOFFLOAD: ((16, "Set On (Output)"),),
+    TYPE_DIMMER: ((0, "On-Off State (Output)"), (1, "Dim Level (Output)")),
 }
 
 SUPPORTED_TYPES = frozenset(READ_PORTS)

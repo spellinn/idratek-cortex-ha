@@ -8,6 +8,7 @@ from typing import Any
 import probatio
 
 from homeassistant.config_entries import (
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -27,7 +28,7 @@ from .const import (
     TYPE_HOUSE,
 )
 from .coordinator import CortexConfigEntry
-from .push import webhook_urls
+from .push import push_cheatsheet, webhook_urls
 
 USER_SCHEMA = probatio.Schema(
     {
@@ -181,5 +182,11 @@ class CortexOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=schema,
-            description_placeholders={"webhook_urls": url_list, "webhook_url": first_url},
+            description_placeholders={
+                "webhook_urls": url_list,
+                "webhook_url": first_url,
+                "push_objects": push_cheatsheet(self.config_entry.runtime_data)
+                if self.config_entry.state is ConfigEntryState.LOADED
+                else "Reload the integration to list objects.",
+            },
         )

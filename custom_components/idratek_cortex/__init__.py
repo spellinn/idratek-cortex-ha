@@ -17,7 +17,12 @@ from .const import (
 from .coordinator import CortexConfigEntry, CortexCoordinator
 from .push import async_register_push
 
-PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.LIGHT, Platform.SWITCH]
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.CLIMATE,
+    Platform.LIGHT,
+    Platform.SWITCH,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: CortexConfigEntry) -> bool:

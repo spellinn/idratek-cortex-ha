@@ -10,10 +10,12 @@ from homeassistant.components import webhook
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 
-from .const import DOMAIN, LOGGER
-from .coordinator import CortexConfigEntry
+from .const import DOMAIN, LOGGER, PUSH_PORTS, TYPE_HVAC
+from .coordinator import CortexConfigEntry, CortexCoordinator
 
 ID_KEYS = ("id", "idnumber", "object", "objectid")
+PORT_KEYS = ("port", "portnumber")
+VALUE_KEYS = ("value",)
 
 
 def webhook_id_for(entry_id: str) -> str:
@@ -56,30 +58,51 @@ def webhook_urls(hass: HomeAssistant, entry_id: str) -> list[tuple[str, str]]:
     return urls
 
 
-def _extract_id(data: Any) -> str | None:
-    """Find an object ID in query parameters or a JSON body (any nesting)."""
+def push_cheatsheet(coordinator: CortexCoordinator) -> str:
+    """Markdown list of the id/port values to enter in each Cortex Web API Client entry."""
+    lines: list[str] = []
+    for obj in sorted(coordinator.objects.values(), key=lambda o: (o.type, o.name.lower())):
+        if obj.type == TYPE_HVAC:
+            lines.append(f"- {obj.name} (HVAC): `id` = {obj.object_id} only")
+            continue
+        for port, label in PUSH_PORTS.get(obj.type, ()):
+            lines.append(
+                f"- {obj.name} ({obj.type}): `id` = {obj.object_id}, `port` = {port}, "
+                f"`value` = `<{obj.name}.{label}=?0>`"
+            )
+    return "\n".join(lines) or "No pushable objects found."
+
+
+def _flatten(data: Any, into: dict[str, str]) -> None:
+    """Collect scalar values by lower-case key from any nesting; first one wins."""
     if isinstance(data, dict):
         for key, value in data.items():
-            if str(key).lower() in ID_KEYS and isinstance(value, str | int):
-                return str(value)
-        for value in data.values():
-            if (found := _extract_id(value)) is not None:
-                return found
-    return None
+            if isinstance(value, dict | list):
+                _flatten(value, into)
+            elif value is not None:
+                into.setdefault(str(key).lower(), str(value))
+    elif isinstance(data, list):
+        for item in data:
+            _flatten(item, into)
 
 
-async def _object_id_from_request(request: web.Request) -> str | None:
-    if (found := _extract_id(dict(request.query))) is not None:
-        return found
+async def _params(request: web.Request) -> dict[str, str]:
+    """Query parameters first, then a JSON or form body."""
+    params: dict[str, str] = {}
+    _flatten(dict(request.query), params)
     if request.can_read_body:
         try:
-            return _extract_id(await request.json())
+            _flatten(await request.json(), params)
         except ValueError:
             try:
-                return _extract_id(dict(await request.post()))
+                _flatten(dict(await request.post()), params)
             except ValueError:
-                return None
-    return None
+                pass
+    return params
+
+
+def _first(params: dict[str, str], keys: tuple[str, ...]) -> str | None:
+    return next((params[key] for key in keys if key in params), None)
 
 
 def async_register_push(hass: HomeAssistant, entry: CortexConfigEntry) -> None:
@@ -89,13 +112,25 @@ def async_register_push(hass: HomeAssistant, entry: CortexConfigEntry) -> None:
     async def _handle(
         hass: HomeAssistant, webhook_id: str, request: web.Request
     ) -> web.Response:
-        object_id = await _object_id_from_request(request)
-        if object_id is not None and object_id in coordinator.objects:
-            LOGGER.debug("Cortex push for object %s", object_id)
-            await coordinator.async_refresh_object(object_id)
-        else:
+        params = await _params(request)
+        object_id = _first(params, ID_KEYS)
+        if object_id is None or object_id not in coordinator.objects:
             LOGGER.debug("Cortex push without a known object id (%s); full refresh", object_id)
             await coordinator.async_request_refresh()
+            return web.Response(status=200)
+
+        port_text, value = _first(params, PORT_KEYS), _first(params, VALUE_KEYS)
+        if port_text is not None and value is not None and port_text.strip().isdigit():
+            if await coordinator.async_apply_push(object_id, int(port_text), value):
+                LOGGER.debug("Cortex push applied: %s port %s = %s", object_id, port_text, value)
+                return web.Response(status=200)
+            LOGGER.debug(
+                "Cortex push for %s port %s value %r not applicable; refreshing",
+                object_id,
+                port_text,
+                value,
+            )
+        await coordinator.async_refresh_object(object_id)
         return web.Response(status=200)
 
     hook = webhook_id_for(entry.entry_id)

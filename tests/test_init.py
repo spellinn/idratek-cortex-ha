@@ -32,6 +32,13 @@ async def test_entities_and_state(hass, mock_client, mock_config_entry) -> None:
     assert climate.attributes["hvac_action"] == "idle"
     assert climate.attributes["hvac_modes"] == ["off", "heat"]
 
+    assert hass.states.get("binary_sensor.porch").state == "off"
+    assert hass.states.get("binary_sensor.porch").attributes["device_class"] == "occupancy"
+    assert hass.states.get("binary_sensor.porch_occupied_delayed").state == "off"
+    assert hass.states.get("binary_sensor.kitchen_motion").state == "on"
+    door = hass.states.get("binary_sensor.front_bedroom_door")
+    assert (door.state, door.attributes["device_class"]) == ("on", "door")
+
 
 async def test_light_commands(hass, mock_client, mock_config_entry) -> None:
     await _setup(hass, mock_config_entry)
@@ -102,3 +109,65 @@ async def test_options_flow_shows_urls(hass, mock_client, mock_config_entry) -> 
     result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
     assert result["type"] == "form"
     assert "/api/webhook/idratek_cortex_" in result["description_placeholders"]["webhook_urls"]
+
+
+async def test_value_push_applies_instantly_then_confirms(
+    hass, hass_client_no_auth, mock_client, mock_config_entry, ports, monkeypatch
+) -> None:
+    monkeypatch.setattr("custom_components.idratek_cortex.coordinator.CONFIRM_DELAY", 30)
+    await _setup(hass, mock_config_entry)
+    hook = f"/api/webhook/idratek_cortex_{mock_config_entry.entry_id}"
+    client = await hass_client_no_auth()
+    reads = mock_client.read_port.await_count
+
+    resp = await client.get(f"{hook}?id=27&port=2&value=100.00")
+    assert resp.status == 200
+    await hass.async_block_till_done(wait_background_tasks=False)
+    assert hass.states.get("binary_sensor.porch").state == "on"
+    assert mock_client.read_port.await_count == reads  # no network read yet
+
+    resp = await client.post(hook, json={"id": "27", "port": "2", "value": "0.00"})
+    assert resp.status == 200
+    await hass.async_block_till_done(wait_background_tasks=False)
+    assert hass.states.get("binary_sensor.porch").state == "off"
+
+
+async def test_value_push_confirmation_read(
+    hass, hass_client_no_auth, mock_client, mock_config_entry, ports, monkeypatch
+) -> None:
+    monkeypatch.setattr("custom_components.idratek_cortex.coordinator.CONFIRM_DELAY", 0)
+    await _setup(hass, mock_config_entry)
+    hook = f"/api/webhook/idratek_cortex_{mock_config_entry.entry_id}"
+    client = await hass_client_no_auth()
+    ports[("27", 2)] = type(ports[("27", 2)])(100.0, True)  # Cortex agrees
+    await client.get(f"{hook}?id=27&port=2&value=100")
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert hass.states.get("binary_sensor.porch").state == "on"
+    # Cortex disagrees on confirmation: Cortex wins.
+    ports[("27", 2)] = type(ports[("27", 2)])(0.0, False)
+    await client.get(f"{hook}?id=27&port=2&value=100")
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert hass.states.get("binary_sensor.porch").state == "off"
+
+
+async def test_bad_push_values_fall_back_to_refresh(
+    hass, hass_client_no_auth, mock_client, mock_config_entry
+) -> None:
+    await _setup(hass, mock_config_entry)
+    hook = f"/api/webhook/idratek_cortex_{mock_config_entry.entry_id}"
+    client = await hass_client_no_auth()
+    reads = mock_client.read_port.await_count
+    for query in ("id=27&port=2&value=abc", "id=27&port=99&value=100", "id=999&port=2&value=1"):
+        resp = await client.get(f"{hook}?{query}")
+        assert resp.status == 200
+    await hass.async_block_till_done()
+    assert mock_client.read_port.await_count > reads
+    assert hass.states.get("binary_sensor.porch").state == "off"
+
+
+async def test_options_cheatsheet_lists_objects(hass, mock_client, mock_config_entry) -> None:
+    await _setup(hass, mock_config_entry)
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    sheet = result["description_placeholders"]["push_objects"]
+    assert "Porch (Room): `id` = 27, `port` = 2, `value` = `<Porch.Occupied state output=?0>`" in sheet
+    assert "Front Bedroom Radiator (HVAC): `id` = 42 only" in sheet

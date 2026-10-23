@@ -18,6 +18,9 @@ OBJECTS = {
     "130": CortexObject("130", "Outside light", "Light", "Ground", {}),
     "257": CortexObject("257", "Extractor fan", "OnOffLoad", "Bathroom", {}),
     "42": CortexObject("42", "Front Bedroom Radiator", "HVAC", "Front bedroom", {}),
+    "27": CortexObject("27", "Porch", "Room", "Ground", {}),
+    "110": CortexObject("110", "Kitchen Motion", "Motion", "Kitchen", {}),
+    "266": CortexObject("266", "Front bedroom Door", "Door", "Front bedroom", {}),
 }
 PORTS = {
     ("178", 0): PortReading(80.0, True),
@@ -29,6 +32,10 @@ PORTS = {
     ("42", 18): PortReading(0.0, False),
     ("42", 46): PortReading(22.0, None),
     ("42", 47): PortReading(-1000.0, None),
+    ("27", 2): PortReading(0.0, False),
+    ("27", 8): PortReading(0.0, False),
+    ("110", 0): PortReading(100.0, True),
+    ("266", 2): PortReading(100.0, True),
 }
 
 
@@ -38,7 +45,13 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 
 
 @pytest.fixture
-def mock_client() -> Generator[AsyncMock]:
+def ports() -> dict:
+    """Mutable copy of the fake Cortex port values."""
+    return dict(PORTS)
+
+
+@pytest.fixture
+def mock_client(ports) -> Generator[AsyncMock]:
     """Patch the Cortex client used by the integration and the config flow."""
     with (
         patch("custom_components.idratek_cortex.CortexClient", autospec=True) as init_cls,
@@ -46,7 +59,7 @@ def mock_client() -> Generator[AsyncMock]:
     ):
         client = init_cls.return_value
         client.get_objects.return_value = OBJECTS
-        client.read_port.side_effect = lambda oid, port: PORTS[(oid, port)]
+        client.read_port.side_effect = lambda oid, port: ports[(oid, port)]
         client.get_properties.return_value = {"IDNumber": "42", "HVACMode": "1"}
         client.get_object.return_value = CortexObject(
             "42", "Front Bedroom Radiator", "HVAC", None, {"PaintString": "H 22.00"}
