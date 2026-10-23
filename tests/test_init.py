@@ -45,7 +45,9 @@ async def test_light_commands(hass, mock_client, mock_config_entry) -> None:
     await hass.services.async_call(
         "light", "turn_on", {"entity_id": "light.lounge_lights", "brightness": 255}, blocking=True
     )
-    mock_client.write_port_value.assert_awaited_with("178", 5, 100)
+    mock_client.write_port_value.assert_awaited_with(
+        "178", 5, 100, name="Lounge lights", description="Set Dim Level"
+    )
     await hass.services.async_call(
         "light", "turn_on", {"entity_id": "light.outside_light"}, blocking=True
     )
@@ -64,7 +66,13 @@ async def test_climate_commands(hass, mock_client, mock_config_entry) -> None:
         {"entity_id": "climate.front_bedroom_radiator", "temperature": 21.5},
         blocking=True,
     )
-    mock_client.write_port_value.assert_awaited_with("42", 31, 21.5)
+    mock_client.write_port_value.assert_awaited_with(
+        "42",
+        31,
+        21.5,
+        name="Front Bedroom Radiator",
+        description="Heating temporary change Set-point value",
+    )
     await hass.services.async_call(
         "climate",
         "set_hvac_mode",

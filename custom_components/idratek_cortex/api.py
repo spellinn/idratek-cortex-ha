@@ -109,6 +109,7 @@ class CortexClient:
         self._base = f"http://{host}:{port}/api/v1"
         self._auth_header = aiohttp.encode_basic_auth(username, password)
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+        self._write_form: str | None = None
 
     async def _request(
         self,
@@ -136,7 +137,8 @@ class CortexClient:
                 if response.status in (401, 403):
                     raise CortexAuthError(f"HTTP {response.status} from {path}")
                 if response.status >= 400:
-                    raise CortexApiError(f"HTTP {response.status} from {path}")
+                    detail = " ".join((await response.text()).split())[:200]
+                    raise CortexApiError(f"HTTP {response.status} from {path}: {detail}")
                 if response.status == 204:
                     return None
                 text = await response.text()
@@ -174,19 +176,55 @@ class CortexClient:
         return PortReading(_to_float(event.get("Value")), _to_bool(event.get("State")))
 
     # ---------------------------------------------------------------- actions
-    async def write_port_value(self, object_id: str, port: int, value: float | str) -> None:
-        """Write a value to (or trigger) a port.
+    async def write_port_value(
+        self,
+        object_id: str,
+        port: int,
+        value: float | str,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> None:
+        """Write a value to a ValueIn port.
 
-        Web API (Cortex help, "Cortex API Web"): setting a port is
-        POST /api/v1/Ports/<object>?<port number or description>=<value>.
-        POST /Ports/<object>/<port> is the read form and returns HTTP 405.
+        Some Cortex builds refuse the documented POST /Ports/<id>?<port>=<value>
+        form with HTTP 405 ("GET action required to query port value"), while the
+        named object form used for triggers works. Try the forms in turn, newest
+        working form first, and remember which one the controller accepts.
         """
-        await self._request(
-            "POST",
-            f"/json/Ports/{quote(object_id, safe='')}?{quote(str(port), safe='')}="
-            f"{quote(str(value), safe='')}",
-            json_body={},
-        )
+        sent = quote(str(value), safe="")
+        oid = quote(object_id, safe="")
+        forms: list[tuple[str, str, Any]] = []
+        if name and description:
+            forms.append(
+                (
+                    "named",
+                    f"/json/objects/{quote(name, safe='')}?{quote(description, safe='')}={sent}",
+                    {},
+                )
+            )
+        forms += [
+            ("ports", f"/json/Ports/{oid}?{port}={sent}", None),
+            ("ports-body", f"/json/Ports/{oid}?{port}={sent}", {}),
+            ("objects", f"/Objects.json/{oid}?{port}={sent}", None),
+        ]
+        preferred = self._write_form
+        forms.sort(key=lambda form: form[0] != preferred)
+
+        last_error: CortexApiError | None = None
+        for label, path, body in forms:
+            try:
+                await self._request("POST", path, json_body=body)
+            except CortexApiError as err:
+                LOGGER.debug("Port write form %s failed: %s", label, err)
+                last_error = err
+                continue
+            if self._write_form != label:
+                LOGGER.info("Cortex accepts port writes using the %s form", label)
+                self._write_form = label
+            return
+        assert last_error is not None
+        raise last_error
 
     async def get_properties(self, object_id: str) -> dict[str, Any]:
         """Return an object's properties (behaviour-menu values, e.g. HVACMode)."""

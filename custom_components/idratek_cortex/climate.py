@@ -179,7 +179,15 @@ class CortexClimate(CortexEntity, ClimateEntity):
         )
         try:
             await self.coordinator.client.write_port_value(
-                self._object.object_id, port, temperature
+                self._object.object_id,
+                port,
+                temperature,
+                name=self._object.name,
+                description=(
+                    "Cooling temporary change Set-point value"
+                    if port == HVAC_PORTS.set_cool_setpoint
+                    else "Heating temporary change Set-point value"
+                ),
             )
         except CortexError as err:
             raise _command_error(err, self._object.name) from err

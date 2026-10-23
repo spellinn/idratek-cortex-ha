@@ -72,7 +72,7 @@ Cortex needs the Web Server and Cortex Mobile licences, the Web Server object en
 All requests use HTTP Basic authentication and the `/api/v1/json/...` form of the Cortex Web API. Per the Cortex help ("Cortex API Web"), GET reads and POST changes:
 
 - Read a port: `GET /api/v1/json/Ports/<id>/<port>`.
-- Set a port (brightness, setpoint): `POST /api/v1/json/Ports/<id>?<port>=<value>`. POSTing to `/Ports/<id>/<port>` returns HTTP 405, which was the cause of the "GET action required to query port value" error in 2.0.x.
+- Set a port (brightness, setpoint): some Cortex builds answer the documented `POST /api/v1/json/Ports/<id>?<port>=<value>` with HTTP 405 "GET action required to query port value". The integration therefore tries, in turn: `POST /json/objects/<name>?<port description>=<value>` (the form used for on and off), the Ports form, and `POST /Objects.json/<id>?<port>=<value>`. It remembers the form that works and logs it at info level. POSTing to `/Ports/<id>/<port>` is the read form and also returns 405.
 - Set a property (HVAC mode): `POST /api/v1/json/Properties/<id>?HVACMode=<0-3>`.
 - Trigger an input port (on, off): `POST /api/v1/json/objects/<name>?<port description>=1`, with the port set form as the fallback.
 

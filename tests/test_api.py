@@ -32,11 +32,43 @@ async def client(server):
         yield CortexClient(session, "127.0.0.1", server.port, "ha", "pw")
 
 
-async def test_write_port_uses_documented_post_form(client, server) -> None:
-    await client.write_port_value("42", 31, 21.5)
+async def test_write_port_uses_named_form_first(client, server) -> None:
+    await client.write_port_value("188", 5, 63, name="Lounge Dimmer", description="Set Dim Level")
     method, path, auth = server.seen[-1]
-    assert (method, path) == ("POST", "/api/v1/json/Ports/42?31=21.5")
+    assert (method, path) == (
+        "POST",
+        "/api/v1/json/objects/Lounge%20Dimmer?Set%20Dim%20Level=63",
+    )
     assert auth == "Basic aGE6cHc="
+
+
+async def test_write_port_without_name_uses_ports_form(client, server) -> None:
+    await client.write_port_value("42", 31, 21.5)
+    assert server.seen[-1][:2] == ("POST", "/api/v1/json/Ports/42?31=21.5")
+
+
+async def test_write_port_falls_back_when_cortex_returns_405(socket_enabled, aiohttp_server) -> None:
+    seen: list[str] = []
+
+    async def handler(request: web.Request) -> web.Response:
+        seen.append(request.raw_path)
+        if "/Ports/" in request.path or "/objects/" in request.path.lower():
+            return web.Response(
+                status=405,
+                text="<CortexAPI><Code>405</Code><Message>GET action required</Message></CortexAPI>",
+            )
+        return web.json_response({})
+
+    app = web.Application()
+    app.router.add_route("*", "/{tail:.*}", handler)
+    srv = await aiohttp_server(app)
+    async with ClientSession() as session:
+        cortex = CortexClient(session, "127.0.0.1", srv.port, "ha", "pw")
+        await cortex.write_port_value("188", 5, 63, name="Dimmer", description="Set Dim Level")
+        assert seen[-1] == "/api/v1/Objects.json/188?5=63"
+        seen.clear()
+        await cortex.write_port_value("188", 5, 40, name="Dimmer", description="Set Dim Level")
+        assert seen == ["/api/v1/Objects.json/188?5=40"]  # remembered the working form
 
 
 async def test_set_property(client, server) -> None:

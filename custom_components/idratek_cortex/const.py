@@ -51,6 +51,7 @@ class SwitchedPorts:
     off_desc: str = "Turn off"
     level: int | None = None  # ValueOut port holding 0-100 dim level
     set_level: int | None = None  # ValueIn port that sets 0-100 dim level
+    set_level_desc: str = "Set Dim Level"
 
 
 # Verified against the stored port dumps (see README, "Port dispatch table").

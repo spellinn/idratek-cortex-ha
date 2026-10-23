@@ -71,7 +71,11 @@ class CortexLight(CortexEntity, LightEntity):
             if ATTR_BRIGHTNESS in kwargs and self._ports.set_level is not None:
                 percent = round(brightness_to_value(BRIGHTNESS_SCALE, kwargs[ATTR_BRIGHTNESS]))
                 await self.coordinator.client.write_port_value(
-                    self._object.object_id, self._ports.set_level, percent
+                    self._object.object_id,
+                    self._ports.set_level,
+                    percent,
+                    name=self._object.name,
+                    description=self._ports.set_level_desc,
                 )
             else:
                 await self.coordinator.client.trigger(
