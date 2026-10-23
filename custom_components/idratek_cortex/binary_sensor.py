@@ -1,4 +1,4 @@
-"""Binary sensors: Room occupancy, Motion and Door objects."""
+"""Binary sensors: Room occupancy, Motion, Door and LightLevel dark state."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import CortexObject
-from .const import TYPE_DOOR, TYPE_MOTION, TYPE_ROOM
+from .const import TYPE_DOOR, TYPE_LIGHTLEVEL, TYPE_MOTION, TYPE_ROOM
 from .coordinator import CortexConfigEntry, CortexCoordinator
 from .entity import CortexEntity
 
@@ -58,6 +58,10 @@ DESCRIPTIONS: dict[str, tuple[CortexBinarySensorDescription, ...]] = {
             port=2,
             device_class=BinarySensorDeviceClass.DOOR,
         ),
+    ),
+    # Dark Output: true means dark, so there is no matching device class (light is inverted).
+    TYPE_LIGHTLEVEL: (
+        CortexBinarySensorDescription(key="dark", translation_key="dark", port=1),
     ),
 }
 

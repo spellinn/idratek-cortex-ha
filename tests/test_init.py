@@ -45,6 +45,20 @@ async def test_entities_and_state(hass, mock_client, mock_config_entry) -> None:
     assert temp.attributes["unit_of_measurement"] == "°C"
     assert temp.attributes["device_class"] == "temperature"
 
+    humidity = hass.states.get("sensor.kitchen_humidity")
+    assert float(humidity.state) == pytest.approx(48.1, abs=0.05)
+    assert (humidity.attributes["device_class"], humidity.attributes["unit_of_measurement"]) == (
+        "humidity",
+        "%",
+    )
+    assert float(hass.states.get("sensor.kitchen_humidity_dew_point").state) == pytest.approx(
+        10.6, abs=0.05
+    )
+    level = hass.states.get("sensor.kitchen_lightlevel")
+    assert float(level.state) == pytest.approx(14.0)
+    assert "device_class" not in level.attributes
+    assert hass.states.get("binary_sensor.kitchen_lightlevel_dark").state == "on"
+
 
 async def test_light_commands(hass, mock_client, mock_config_entry) -> None:
     await _setup(hass, mock_config_entry)
@@ -207,3 +221,23 @@ async def test_temperature_push_and_missing_source(
     assert "`value` = `<Snug Temperature.Temperature Output=?>`" in result[
         "description_placeholders"
     ]["push_objects"]
+
+
+async def test_light_level_push_and_cheatsheet(
+    hass, hass_client_no_auth, mock_client, mock_config_entry, monkeypatch
+) -> None:
+    monkeypatch.setattr("custom_components.idratek_cortex.coordinator.CONFIRM_DELAY", 30)
+    await _setup(hass, mock_config_entry)
+    hook = f"/api/webhook/idratek_cortex_{mock_config_entry.entry_id}"
+    client = await hass_client_no_auth()
+    await client.get(f"{hook}?id=113&port=1&value=0")
+    await client.get(f"{hook}?id=113&port=0&value=250.50")
+    await hass.async_block_till_done(wait_background_tasks=False)
+    assert hass.states.get("binary_sensor.kitchen_lightlevel_dark").state == "off"
+    assert float(hass.states.get("sensor.kitchen_lightlevel").state) == pytest.approx(250.5)
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    sheet = result["description_placeholders"]["push_objects"]
+    assert "`<Kitchen Humidity.Humidity Output=?>`" in sheet
+    assert "`<Kitchen LightLevel.Light Level Output=?>`" in sheet
+    assert "`<Kitchen LightLevel.Dark Output=?0>`" in sheet

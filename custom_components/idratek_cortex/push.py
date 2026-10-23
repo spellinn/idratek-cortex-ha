@@ -10,7 +10,7 @@ from homeassistant.components import webhook
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 
-from .const import DECIMAL_PUSH_TYPES, DOMAIN, LOGGER, PUSH_PORTS, TYPE_HVAC
+from .const import DECIMAL_PUSH_PORTS, DOMAIN, LOGGER, PUSH_PORTS, TYPE_HVAC
 from .coordinator import CortexConfigEntry, CortexCoordinator
 
 ID_KEYS = ("id", "idnumber", "object", "objectid")
@@ -66,7 +66,7 @@ def push_cheatsheet(coordinator: CortexCoordinator) -> str:
             lines.append(f"- {obj.name} (HVAC): `id` = {obj.object_id} only")
             continue
         for port, label in PUSH_PORTS.get(obj.type, ()):
-            fmt = "?" if obj.type in DECIMAL_PUSH_TYPES else "?0"
+            fmt = "?" if (obj.type, port) in DECIMAL_PUSH_PORTS else "?0"
             lines.append(
                 f"- {obj.name} ({obj.type}): `id` = {obj.object_id}, `port` = {port}, "
                 f"`value` = `<{obj.name}.{label}={fmt}>`"

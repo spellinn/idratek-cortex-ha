@@ -21,6 +21,8 @@ OBJECTS = {
     "27": CortexObject("27", "Porch", "Room", "Ground", {}),
     "110": CortexObject("110", "Kitchen Motion", "Motion", "Kitchen", {}),
     "389": CortexObject("389", "Snug Temperature", "Temperature", "Snug", {}),
+    "108": CortexObject("108", "Kitchen Humidity", "Humidity", "Kitchen", {}),
+    "113": CortexObject("113", "Kitchen LightLevel", "LightLevel", "Kitchen", {}),
     "266": CortexObject("266", "Front bedroom Door", "Door", "Front bedroom", {}),
 }
 PORTS = {
@@ -38,6 +40,10 @@ PORTS = {
     ("110", 0): PortReading(100.0, True),
     ("266", 2): PortReading(100.0, True),
     ("389", 0): PortReading(21.5390625, False),
+    ("108", 0): PortReading(48.1, False),
+    ("108", 5): PortReading(10.584, False),
+    ("113", 0): PortReading(14.0, False),
+    ("113", 1): PortReading(100.0, True),
 }
 
 

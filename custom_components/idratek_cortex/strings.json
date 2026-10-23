@@ -92,6 +92,14 @@
     "binary_sensor": {
       "occupied_delayed": {
         "name": "Occupied (delayed)"
+      },
+      "dark": {
+        "name": "Dark"
+      }
+    },
+    "sensor": {
+      "dewpoint": {
+        "name": "Dew point"
       }
     }
   }
