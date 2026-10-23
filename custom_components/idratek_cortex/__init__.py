@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from aiohttp import web
-
-from homeassistant.components import webhook
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -18,12 +15,9 @@ from .const import (
     MANUFACTURER,
 )
 from .coordinator import CortexConfigEntry, CortexCoordinator
+from .push import async_register_push
 
 PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.LIGHT, Platform.SWITCH]
-
-
-def _webhook_id(entry: CortexConfigEntry) -> str:
-    return f"{DOMAIN}_{entry.entry_id}"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: CortexConfigEntry) -> bool:
@@ -52,23 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: CortexConfigEntry) -> bo
         model="Cortex",
     )
 
-    async def _handle_webhook(
-        hass: HomeAssistant, webhook_id: str, request: web.Request
-    ) -> web.Response:
-        """Cortex Web API Client push: refresh now, whatever the body says."""
-        await coordinator.async_handle_webhook_refresh()
-        return web.Response(status=200)
-
-    webhook.async_register(
-        hass,
-        DOMAIN,
-        "Idratek Cortex",
-        _webhook_id(entry),
-        _handle_webhook,
-        local_only=True,
-        allowed_methods=["POST", "PUT"],
-    )
-    entry.async_on_unload(lambda: webhook.async_unregister(hass, _webhook_id(entry)))
+    async_register_push(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

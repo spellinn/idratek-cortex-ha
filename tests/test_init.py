@@ -64,7 +64,7 @@ async def test_climate_commands(hass, mock_client, mock_config_entry) -> None:
         {"entity_id": "climate.front_bedroom_radiator", "hvac_mode": "off"},
         blocking=True,
     )
-    mock_client.trigger.assert_awaited_with("Front Bedroom Radiator", "42", "Mode Off", 6)
+    mock_client.set_property.assert_awaited_with("42", "HVACMode", 0)
 
 
 async def test_auth_failure_starts_reauth(hass, mock_client, mock_config_entry) -> None:
@@ -84,7 +84,21 @@ async def test_webhook_refreshes(hass, hass_client_no_auth, mock_client, mock_co
     await _setup(hass, mock_config_entry)
     calls = mock_client.read_port.await_count
     client = await hass_client_no_auth()
-    resp = await client.post(f"/api/webhook/idratek_cortex_{mock_config_entry.entry_id}", json={})
+    hook = f"/api/webhook/idratek_cortex_{mock_config_entry.entry_id}"
+    resp = await client.get(f"{hook}?id=130")
     assert resp.status == 200
     await hass.async_block_till_done()
-    assert mock_client.read_port.await_count > calls
+    assert mock_client.read_port.await_count == calls + 1  # only object 130 re-read
+    resp = await client.post(hook, json={"Cortex_HAAPI": {"IDNumber": "257"}})
+    assert resp.status == 200
+    await hass.async_block_till_done()
+    assert mock_client.read_port.await_count == calls + 2
+    resp = await client.post(hook, json={})  # no id: full refresh
+    assert resp.status == 200
+
+
+async def test_options_flow_shows_urls(hass, mock_client, mock_config_entry) -> None:
+    await _setup(hass, mock_config_entry)
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    assert result["type"] == "form"
+    assert "/api/webhook/idratek_cortex_" in result["description_placeholders"]["webhook_urls"]

@@ -19,7 +19,7 @@ from .api import (
     CortexObject,
     PortReading,
 )
-from .const import DOMAIN, LOGGER, READ_PORTS, SUPPORTED_TYPES, TYPE_HVAC
+from .const import DOMAIN, HVAC_MODE_PROPERTY, LOGGER, READ_PORTS, SUPPORTED_TYPES, TYPE_HVAC
 
 type CortexConfigEntry = ConfigEntry[CortexCoordinator]
 
@@ -29,13 +29,15 @@ class CortexObjectState:
     """Latest readings for one Cortex object."""
 
     ports: dict[int, PortReading] = field(default_factory=dict)
-    paint_string: str | None = None  # HVAC mode/setpoint summary, e.g. "H 22.00"
+    hvac_mode: int | None = None  # HVACMode property: 0 off, 1 heat, 2 cool, 3 auto
+    paint_string: str | None = None  # fallback mode source, e.g. "H 22.00"
 
     def __eq__(self, other: object) -> bool:
         """Compare by content so always_update=False can suppress no-op updates."""
         return (
             isinstance(other, CortexObjectState)
             and self.ports == other.ports
+            and self.hvac_mode == other.hvac_mode
             and self.paint_string == other.paint_string
         )
 
@@ -115,12 +117,27 @@ class CortexCoordinator(DataUpdateCoordinator[dict[str, CortexObjectState]]):
         )
         state = CortexObjectState(ports=dict(zip(ports, readings, strict=True)))
         if obj.type == TYPE_HVAC:
-            fresh = await self.client.get_object(obj.object_id)
-            if fresh is not None:
-                paint = fresh.attributes.get("PaintString")
-                state.paint_string = str(paint) if paint is not None else None
+            props = await self.client.get_properties(obj.object_id)
+            try:
+                state.hvac_mode = int(props[HVAC_MODE_PROPERTY])
+            except (KeyError, TypeError, ValueError):
+                # Older firmware: infer from the object's PaintString instead.
+                fresh = await self.client.get_object(obj.object_id)
+                if fresh is not None:
+                    paint = fresh.attributes.get("PaintString")
+                    state.paint_string = str(paint) if paint is not None else None
         return state
 
-    async def async_handle_webhook_refresh(self) -> None:
-        """Refresh after a Cortex Web API Client push."""
-        await self.async_request_refresh()
+    async def async_refresh_object(self, object_id: str) -> None:
+        """Re-read a single object (used by webhook pushes) and notify listeners."""
+        obj = self.objects.get(object_id)
+        if obj is None:
+            return
+        try:
+            fresh = await self._read_object(obj)
+        except CortexError as err:
+            LOGGER.debug("Push refresh of %s failed (%s); full refresh", object_id, err)
+            await self.async_request_refresh()
+            return
+        self.async_set_updated_data({**(self.data or {}), object_id: fresh})
+

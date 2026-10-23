@@ -7,7 +7,6 @@ from typing import Any
 
 import probatio
 
-from homeassistant.components import webhook
 from homeassistant.config_entries import (
     ConfigFlow,
     ConfigFlowResult,
@@ -28,6 +27,7 @@ from .const import (
     TYPE_HOUSE,
 )
 from .coordinator import CortexConfigEntry
+from .push import webhook_urls
 
 USER_SCHEMA = probatio.Schema(
     {
@@ -165,11 +165,9 @@ class CortexOptionsFlow(OptionsFlow):
         """Manage options."""
         if user_input is not None:
             return self.async_create_entry(data=user_input)
-        hook_id = f"{DOMAIN}_{self.config_entry.entry_id}"
-        try:
-            path = webhook.async_generate_path(hook_id)
-        except Exception:  # noqa: BLE001
-            path = f"/api/webhook/{hook_id}"
+        urls = webhook_urls(self.hass, self.config_entry.entry_id)
+        url_list = "\n".join(f"- {label}: `{url}`" for label, url in urls)
+        first_url = urls[0][1]
         schema = probatio.Schema(
             {
                 probatio.Required(
@@ -183,5 +181,5 @@ class CortexOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=schema,
-            description_placeholders={"webhook_path": path},
+            description_placeholders={"webhook_urls": url_list, "webhook_url": first_url},
         )

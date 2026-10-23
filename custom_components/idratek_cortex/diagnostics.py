@@ -27,6 +27,7 @@ async def async_get_config_entry_diagnostics(
         },
         "data": {
             oid: {
+                "hvac_mode": state.hvac_mode,
                 "paint_string": state.paint_string,
                 "ports": {
                     str(p): {"value": r.value, "state": r.state}

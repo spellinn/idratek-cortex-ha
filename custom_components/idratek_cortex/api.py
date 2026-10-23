@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote
 
 import aiohttp
+from yarl import URL
 
 from .const import LOGGER, MAX_CONCURRENT_REQUESTS, REQUEST_TIMEOUT
 
@@ -106,7 +107,7 @@ class CortexClient:
         """Initialise the client with a shared Home Assistant websession."""
         self._session = session
         self._base = f"http://{host}:{port}/api/v1"
-        self._auth = aiohttp.BasicAuth(username, password)
+        self._auth_header = aiohttp.encode_basic_auth(username, password)
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
     async def _request(
@@ -123,9 +124,12 @@ class CortexClient:
                 asyncio.timeout(REQUEST_TIMEOUT),
                 self._session.request(
                     method,
-                    url,
-                    auth=self._auth,
-                    headers={"Accept": "application/json"},
+                    # encoded=True keeps %20 verbatim; Cortex matches port descriptions.
+                    URL(url, encoded=True),
+                    headers={
+                        "Accept": "application/json",
+                        "Authorization": self._auth_header,
+                    },
                     json=json_body,
                 ) as response,
             ):
@@ -171,18 +175,42 @@ class CortexClient:
 
     # ---------------------------------------------------------------- actions
     async def write_port_value(self, object_id: str, port: int, value: float | str) -> None:
-        """Write a value to a ValueIn port."""
-        body = {"CortexAPI": {"PortEvent": {"Value": str(value)}}}
+        """Write a value to (or trigger) a port.
+
+        Web API (Cortex help, "Cortex API Web"): setting a port is
+        POST /api/v1/Ports/<object>?<port number or description>=<value>.
+        POST /Ports/<object>/<port> is the read form and returns HTTP 405.
+        """
         await self._request(
-            "POST", f"/json/Ports/{quote(object_id, safe='')}/{port}", json_body=body
+            "POST",
+            f"/json/Ports/{quote(object_id, safe='')}?{quote(str(port), safe='')}="
+            f"{quote(str(value), safe='')}",
+            json_body={},
+        )
+
+    async def get_properties(self, object_id: str) -> dict[str, Any]:
+        """Return an object's properties (behaviour-menu values, e.g. HVACMode)."""
+        data = await self._request("GET", f"/json/Properties/{quote(object_id, safe='')}")
+        for raw in _find_objects(data):
+            if str(raw["IDNumber"]) == object_id:
+                return raw
+        return {}
+
+    async def set_property(self, object_id: str, name: str, value: float | str) -> None:
+        """Set an object property: POST /api/v1/Properties/<object>?<name>=<value>."""
+        await self._request(
+            "POST",
+            f"/json/Properties/{quote(object_id, safe='')}?{quote(name, safe='')}="
+            f"{quote(str(value), safe='')}",
+            json_body={},
         )
 
     async def trigger(self, object_name: str, object_id: str, description: str, port: int) -> None:
         """Fire an In port.
 
         Primary: POST /json/objects/<name>?<port description>=1 (the form
-        documented in the Cortex/HA integration guide). Fallback: write 1 to
-        the port directly.
+        documented in the Cortex/HA integration guide). Fallback: set the port
+        by number using the documented Ports form.
         """
         try:
             await self._request(
@@ -193,7 +221,7 @@ class CortexClient:
             )
         except CortexApiError as err:
             LOGGER.debug(
-                "Named trigger %s/%s failed (%s); writing port %s directly",
+                "Named trigger %s/%s failed (%s); setting port %s directly",
                 object_name,
                 description,
                 err,

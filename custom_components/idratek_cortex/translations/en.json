@@ -61,12 +61,12 @@
     "step": {
       "init": {
         "title": "Idratek Cortex options",
-        "description": "For instant updates, add a Cortex Web API Client entry that POSTs to {webhook_path} on your Home Assistant URL whenever an object changes.",
+        "description": "**Instant updates from Cortex (optional)**\n\nIn Cortex, open the Web API Client object, choose Add, and create one entry per object you want pushed (for example a Room):\n\n- Description: a unique name, for example `HA Lounge occupancy`\n- HTTP method: `GET`\n- ContentType: `application/json`\n- URL: one of the addresses below, followed by `?id=` and the object's IDNumber (for example `?id=27`)\n- Leave basic authentication unticked; the address is private to your network\n\nTick Allow sending of messages on the Web API Client, then open the object's Connections menu and connect its output (for Room, Occupied state output) to the entry's `Send` event. Use Test Send to check it.\n\nAddresses for this Home Assistant (copy and paste):\n\n{webhook_urls}\n\nIf Cortex cannot resolve a name ending in `.local`, use the IP address entry. Only requests from your local network are accepted. Without an `id`, every push refreshes all objects.",
         "data": {
           "scan_interval": "Polling interval (seconds)"
         },
         "data_description": {
-          "scan_interval": "How often Home Assistant polls Cortex. Webhook pushes trigger an immediate refresh in addition."
+          "scan_interval": "How often Home Assistant polls Cortex as a safety net. Pushes from Cortex update immediately in addition."
         }
       }
     }

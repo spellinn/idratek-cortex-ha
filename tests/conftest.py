@@ -47,6 +47,7 @@ def mock_client() -> Generator[AsyncMock]:
         client = init_cls.return_value
         client.get_objects.return_value = OBJECTS
         client.read_port.side_effect = lambda oid, port: PORTS[(oid, port)]
+        client.get_properties.return_value = {"IDNumber": "42", "HVACMode": "1"}
         client.get_object.return_value = CortexObject(
             "42", "Front Bedroom Radiator", "HVAC", None, {"PaintString": "H 22.00"}
         )

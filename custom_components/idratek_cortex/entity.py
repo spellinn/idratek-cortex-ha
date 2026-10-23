@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -23,12 +24,13 @@ class CortexEntity(CoordinatorEntity[CortexCoordinator]):
         self._object = obj
         entry_id = coordinator.config_entry.entry_id
         self._attr_unique_id = f"{entry_id}_{obj.object_id}_{key}"
+        hub = dr.async_get(coordinator.hass).async_get_device(identifiers={(DOMAIN, entry_id)})
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{obj.object_id}")},
             manufacturer=MANUFACTURER,
             model=obj.type,
             name=obj.name,
-            via_device=(DOMAIN, entry_id),
+            via_device_id=hub.id if hub else None,
             serial_number=obj.object_id,
         )
 

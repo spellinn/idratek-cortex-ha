@@ -86,6 +86,10 @@ class HvacPorts:
 
 HVAC_PORTS = HvacPorts()
 
+# HVAC "HVACMode" property values (Cortex help: Cortex API JSON, Properties).
+HVAC_MODE_PROPERTY = "HVACMode"
+HVAC_MODE_OFF, HVAC_MODE_HEAT, HVAC_MODE_COOL, HVAC_MODE_AUTO = 0, 1, 2, 3
+
 # Ports that the coordinator reads for each object type.
 READ_PORTS: dict[str, tuple[int, ...]] = {
     TYPE_DIMMER: (0, 1),

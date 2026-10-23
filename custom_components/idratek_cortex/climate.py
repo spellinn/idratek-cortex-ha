@@ -15,8 +15,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .api import CortexError
-from .const import DISABLED_SENTINEL, DOMAIN, HVAC_PORTS, TYPE_HVAC
+from .api import CortexApiError, CortexError
+from .const import (
+    DISABLED_SENTINEL,
+    DOMAIN,
+    HVAC_MODE_PROPERTY,
+    HVAC_PORTS,
+    TYPE_HVAC,
+)
 from .coordinator import CortexConfigEntry
 from .entity import CortexEntity
 from .light import _command_error
@@ -29,6 +35,9 @@ PAINT_TO_MODE = {
     "A": HVACMode.AUTO,
     "O": HVACMode.OFF,
 }
+# HVACMode property values (Cortex help: Properties of an HVAC are 0,1,2,3).
+VALUE_TO_MODE = {0: HVACMode.OFF, 1: HVACMode.HEAT, 2: HVACMode.COOL, 3: HVACMode.AUTO}
+MODE_TO_VALUE = {mode: value for value, mode in VALUE_TO_MODE.items()}
 MODE_TO_DESCRIPTION = {
     HVACMode.OFF: (HVAC_PORTS.mode_off, "Mode Off"),
     HVACMode.HEAT: (HVAC_PORTS.mode_heat, "Mode Heating"),
@@ -86,11 +95,15 @@ class CortexClimate(CortexEntity, ClimateEntity):
 
     @property
     def hvac_mode(self) -> HVACMode | None:
-        """Infer the mode from the PaintString prefix (Cortex has no mode output)."""
+        """Mode from the HVACMode property (PaintString prefix on older firmware)."""
         state = self.object_state
-        if state is None or not state.paint_string:
+        if state is None:
             return None
-        return PAINT_TO_MODE.get(state.paint_string.strip()[:1].upper())
+        if state.hvac_mode is not None:
+            return VALUE_TO_MODE.get(state.hvac_mode)
+        if state.paint_string:
+            return PAINT_TO_MODE.get(state.paint_string.strip()[:1].upper())
+        return None
 
     @property
     def hvac_action(self) -> HVACAction | None:
@@ -141,10 +154,16 @@ class CortexClimate(CortexEntity, ClimateEntity):
                 translation_placeholders={"mode": str(hvac_mode)},
             )
         port, description = MODE_TO_DESCRIPTION[hvac_mode]
+        client = self.coordinator.client
         try:
-            await self.coordinator.client.trigger(
-                self._object.name, self._object.object_id, description, port
-            )
+            try:
+                await client.set_property(
+                    self._object.object_id, HVAC_MODE_PROPERTY, MODE_TO_VALUE[hvac_mode]
+                )
+            except CortexApiError:
+                await client.trigger(
+                    self._object.name, self._object.object_id, description, port
+                )
         except CortexError as err:
             raise _command_error(err, self._object.name) from err
         await self.coordinator.async_request_refresh()
