@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 
 from custom_components.idratek_cortex.api import CortexAuthError
 from homeassistant.config_entries import ConfigEntryState
@@ -38,6 +39,11 @@ async def test_entities_and_state(hass, mock_client, mock_config_entry) -> None:
     assert hass.states.get("binary_sensor.kitchen_motion").state == "on"
     door = hass.states.get("binary_sensor.front_bedroom_door")
     assert (door.state, door.attributes["device_class"]) == ("on", "door")
+
+    temp = hass.states.get("sensor.snug_temperature")
+    assert float(temp.state) == pytest.approx(21.5, abs=0.1)
+    assert temp.attributes["unit_of_measurement"] == "°C"
+    assert temp.attributes["device_class"] == "temperature"
 
 
 async def test_light_commands(hass, mock_client, mock_config_entry) -> None:
@@ -179,3 +185,25 @@ async def test_options_cheatsheet_lists_objects(hass, mock_client, mock_config_e
     sheet = result["description_placeholders"]["push_objects"]
     assert "Porch (Room): `id` = 27, `port` = 2, `value` = `<Porch.Occupied state output=?0>`" in sheet
     assert "Front Bedroom Radiator (HVAC): `id` = 42 only" in sheet
+
+
+async def test_temperature_push_and_missing_source(
+    hass, hass_client_no_auth, mock_client, mock_config_entry, ports, monkeypatch
+) -> None:
+    monkeypatch.setattr("custom_components.idratek_cortex.coordinator.CONFIRM_DELAY", 30)
+    await _setup(hass, mock_config_entry)
+    hook = f"/api/webhook/idratek_cortex_{mock_config_entry.entry_id}"
+    client = await hass_client_no_auth()
+    resp = await client.get(f"{hook}?id=389&port=0&value=19.75")
+    assert resp.status == 200
+    await hass.async_block_till_done(wait_background_tasks=False)
+    assert float(hass.states.get("sensor.snug_temperature").state) == pytest.approx(19.75, abs=0.01)
+
+    await client.get(f"{hook}?id=389&port=0&value=-1000.00")
+    await hass.async_block_till_done(wait_background_tasks=False)
+    assert hass.states.get("sensor.snug_temperature").state == "unknown"
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    assert "`value` = `<Snug Temperature.Temperature Output=?>`" in result[
+        "description_placeholders"
+    ]["push_objects"]

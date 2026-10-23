@@ -38,6 +38,7 @@ TYPE_HOUSE = "House"
 TYPE_ROOM = "Room"
 TYPE_MOTION = "Motion"
 TYPE_DOOR = "Door"
+TYPE_TEMPERATURE = "Temperature"
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +107,7 @@ READ_PORTS: dict[str, tuple[int, ...]] = {
     TYPE_ROOM: (2, 8),  # 2 occupied (raw), 8 delayed occupied
     TYPE_MOTION: (0,),  # 0 motion output
     TYPE_DOOR: (2,),  # 2 door output, true = open
+    TYPE_TEMPERATURE: (0,),  # 0 Temperature Output, plain degrees Celsius
 }
 
 # Ports worth pushing from a Cortex Web API Client, with their Cortex descriptions.
@@ -114,10 +116,14 @@ PUSH_PORTS: dict[str, tuple[tuple[int, str], ...]] = {
     TYPE_ROOM: ((2, "Occupied state output"), (8, "Delayed occupied state output")),
     TYPE_MOTION: ((0, "Output"),),
     TYPE_DOOR: ((2, "Door output state"),),
+    TYPE_TEMPERATURE: ((0, "Temperature Output"),),
     TYPE_LIGHT: ((15, "Set On (Output)"),),
     TYPE_HOMEEASY_LIGHT: ((15, "Set On (Output)"),),
     TYPE_ONOFFLOAD: ((16, "Set On (Output)"),),
     TYPE_DIMMER: ((0, "On-Off State (Output)"), (1, "Dim Level (Output)")),
 }
+
+# Pushed values for these types are decimals, so the Cortex tag keeps its decimal places.
+DECIMAL_PUSH_TYPES = frozenset({TYPE_TEMPERATURE})
 
 SUPPORTED_TYPES = frozenset(READ_PORTS)

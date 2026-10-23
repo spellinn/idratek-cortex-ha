@@ -14,6 +14,7 @@ Built against the Home Assistant developer documentation (Building integrations,
 | Room | binary_sensor (occupancy) | 2 (occupied), 8 (delayed occupied) | read only | Port 8 is the delayed output and is a separate entity |
 | Motion | binary_sensor (motion) | 0 | read only | Long motion (3) and fault (99) are not read, to limit polling |
 | Door | binary_sensor (door) | 2 | read only | On means open; ports 0 and 1 are associations |
+| Temperature | sensor (temperature, °C) | 0 (Temperature Output) | read only | A value of -1000 (no source) shows as unknown; pushable with tag `<Name.Temperature Output=?>` |
 | HVAC | climate | demand ports 17 (heat) and 18 (cool) | mode via the `HVACMode` property (0 Off, 1 Heat, 2 Cool, 3 Auto) | Room temp port 0, setpoint out 46 (cool 47), temporary setpoint in 31 (cool 32) |
 
 Temperatures are plain degrees Celsius (for example 22.78), not tenths. A cooling setpoint of -1000 means cooling is disabled, so only Off and Heat are offered.
@@ -57,7 +58,7 @@ The Cortex API Client supports tags in URL Key List values. Right-click the Valu
 
 Home Assistant applies the pushed value immediately, then reads the port from Cortex about 2 seconds later and keeps whatever Cortex reports. If the value is missing or cannot be parsed, or the port is not a known output, the object is simply re-read. The options page lists the exact `id`, `port` and tag for every pushable object in your system.
 
-Pushable ports: Room 2 and 8, Motion 0, Door 2, Light and HomeEasyLight 15, OnOffLoad 16, Dimmer 0 and 1. HVAC objects send `id` only, so Home Assistant re-reads the thermostat. Temperatures stay on polling.
+Pushable ports: Room 2 and 8, Temperature 0 (use `=?` rather than `=?0` so the decimals are kept), Motion 0, Door 2, Light and HomeEasyLight 15, OnOffLoad 16, Dimmer 0 and 1. HVAC objects send `id` only, so Home Assistant re-reads the thermostat. HVAC temperatures stay on polling.
 
 Notes:
 
@@ -80,7 +81,7 @@ All requests use HTTP Basic authentication and the `/api/v1/json/...` form of th
 
 - Objects are read once at setup. Reload the integration after adding objects in Cortex.
 - HVAC mode is read from the `HVACMode` property; if the controller does not return it, the PaintString prefix (H, C, A, O) is used instead.
-- Temperature, humidity, light level, analogue signal, macro, heat zone and AllLight/AllHVAC objects, and fault ports, are documented in the port data but not yet implemented as platforms.
+- Humidity, light level, analogue signal, macro, heat zone and AllLight/AllHVAC objects, and fault ports, are documented in the port data but not yet implemented as platforms.
 - Climate temperature properties are defined under both the legacy and the `native_` names; the legacy names stop working in Home Assistant 2027.11.
 - Command formats follow the Cortex help; confirm each object type against your controller (see Troubleshooting).
 
